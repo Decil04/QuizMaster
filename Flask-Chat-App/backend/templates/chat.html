@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Chat App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            color: white;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        .chat-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(13, 24, 33, 0.8);
+            border-radius: 20px;
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        .card {
+            background-color: rgba(25, 35, 50, 0.9);
+            border: 1px solid rgba(0, 150, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-body {
+            color: white;
+        }
+        .card-title {
+            color: #00a8ff;
+            text-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
+        }
+        .form-control {
+            background-color: rgba(20, 30, 45, 0.8);
+            border: 1px solid rgba(0, 150, 255, 0.3);
+            color: white;
+        }
+        .form-control:focus {
+            background-color: rgba(25, 35, 50, 0.9);
+            border-color: rgba(0, 150, 255, 0.5);
+            color: white;
+            box-shadow: 0 0 0 0.25rem rgba(0, 150, 255, 0.25);
+        }
+        .btn-primary {
+            background-color: #00a8ff;
+            border-color: #0097e6;
+        }
+        .btn-success {
+            background-color: #00b894;
+            border-color: #00a885;
+        }
+        h1 {
+            color: #00a8ff;
+            text-shadow: 0 0 10px rgba(0, 150, 255, 0.5);
+            font-weight: bold;
+        }
+        .role-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .owner-badge {
+            background-color: rgba(0, 168, 255, 0.2);
+            border: 1px solid rgba(0, 168, 255, 0.3);
+            color: #00a8ff;
+        }
+        .member-badge {
+            background-color: rgba(0, 184, 148, 0.2);
+            border: 1px solid rgba(0, 184, 148, 0.3);
+            color: #00b894;
+        }
+        .space-stars {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -2;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="space-stars"></div>
+    
+    <div class="container">
+        <div class="chat-container">
+            <h1 class="text-center mb-4">Space Chat Hub</h1>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <span class="role-badge owner-badge">Room Owner</span>
+                            <h5 class="card-title">Create New Room</h5>
+                            <p class="text-muted mb-3">Create a new space station and become the owner with full control.</p>
+                            <form action="/create_room" method="POST">
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" name="username" placeholder="Your Space Name" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Launch New Station</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <span class="role-badge member-badge">Crew Member</span>
+                            <h5 class="card-title">Join Existing Room</h5>
+                            <p class="text-muted mb-3">Join an existing space station as a crew member.</p>
+                            <form action="/join_room" method="POST">
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" name="username" placeholder="Your Space Name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" name="room_id" placeholder="Room ID" required>
+                                </div>
+                                <button type="submit" class="btn btn-success">Join Station</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Create Earth
+        const earthGeometry = new THREE.SphereGeometry(5, 32, 32);
+        const earthTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg');
+        const earthMaterial = new THREE.MeshPhongMaterial({
+            map: earthTexture,
+            shininess: 25
+        });
+        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        scene.add(earth);
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        // Add directional light (sun-like)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 3, 5);
+        scene.add(directionalLight);
+
+        // Position camera
+        camera.position.z = 10;
+
+        // Create stars
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsMaterial = new THREE.PointsMaterial({
+            color: 0xFFFFFF,
+            size: 0.1
+        });
+
+        const starsVertices = [];
+        for(let i = 0; i < 10000; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            starsVertices.push(x, y, z);
+        }
+
+        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+        const stars = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(stars);
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            earth.rotation.y += 0.001;
+            stars.rotation.y += 0.0002;
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        animate();
+    </script>
+</body>
+</html> 
